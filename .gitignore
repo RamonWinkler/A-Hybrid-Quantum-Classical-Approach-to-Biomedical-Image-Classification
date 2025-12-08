@@ -1,10 +1,11 @@
 # Virtual environments
+torchquantum/
 venv/
 .env/
 .venv/
 env/
 ENV/
-
+.idea/
 # Python cache
 __pycache__/
 *.py[cod]
