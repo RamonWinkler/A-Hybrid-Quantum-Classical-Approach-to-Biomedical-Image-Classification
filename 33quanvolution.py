@@ -1,50 +1,3 @@
-"""
-MIT License
-
-Copyright (c) 2020-present TorchQuantum Authors (Original Code)
-Modifications for MedMNIST BreastDataset (2025)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-"""
-
-import sys
-import os
-from pathlib import Path
-
-# ----------------- CORE FIX FOR MODULE RESOLUTION -----------------
-# When running the script from the project root, the Python interpreter
-# might load the globally installed 'torchquantum' package which may not
-# expose all required attributes (like QuantumModule) at the top level
-# correctly. By adding the script's directory (the project root) to
-# sys.path BEFORE importing, we force Python to look for dependencies
-# in the local source directory first, resolving submodule dependencies.
-try:
-    # Use Path(__file__).resolve().parent to reliably get the project root
-    PROJECT_ROOT = Path(__file__).resolve().parent
-except NameError:
-    PROJECT_ROOT = Path.cwd()
-
-# Prepend the root directory to sys.path
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-# ------------------------------------------------------------------
-
 import torchquantum as tq
 import torch
 import torch.nn.functional as F
@@ -62,7 +15,6 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 
-# REVERTED: Use tq.QuantumModule as requested, relying on the sys.path fix
 class QuanvolutionFilter(tq.QuantumModule):
     def __init__(self):
         super().__init__()
@@ -82,7 +34,7 @@ class QuanvolutionFilter(tq.QuantumModule):
     def forward(self, x, use_qiskit=False):
         # Input x shape: (bsz, 1, 28, 28)
         bsz = x.shape[0]
-        # Initialize quantum device for the current batch
+        # Initialize a quantum device for the current batch
         qdev = tq.QuantumDevice(self.n_wires, bsz=bsz, device=x.device)
         size = 28
         x = x.view(bsz, size, size)
@@ -123,13 +75,9 @@ class HybridModel(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.qf = QuanvolutionFilter()
-        # Classical Linear layer connects the flattened quantum features (9*13*13 = 1521) to 2 output classes
         self.linear = torch.nn.Linear(9 * 13 * 13, 2)
 
     def forward(self, x, use_qiskit=False):
-        # The quantum layer is trained separately (or fixed in this implementation),
-        # using torch.no_grad() here means the quantum layer parameters are fixed
-        # and only the linear layer is optimized.
         with torch.no_grad():
             x = self.qf(x, use_qiskit)
         x = self.linear(x)
@@ -326,7 +274,6 @@ def main():
             loss_list2.append(loss)
             scheduler.step()
 
-    # --- Qiskit Simulation Test ---
     if args.qiskit_simulation:
         try:
             from qiskit import IBMQ
@@ -336,13 +283,6 @@ def main():
             processor_simulation = QiskitProcessor(use_real_qc=False)
             model.qf.set_qiskit_processor(processor_simulation)
             valid_test(loaders['test'], "test", model, device, qiskit=True, plot_cm=True, output_dir=SCRIPT_DIR)
-
-            # Uncomment to run on REAL QC
-            # backend_name = "ibmq_quito"
-            # print(f"\nTest on Real Quantum Computer {backend_name}")
-            # processor_real_qc = QiskitProcessor(use_real_qc=True, backend_name=backend_name)
-            # model.qf.set_qiskit_processor(processor_real_qc)
-            # valid_test(loaders['test'], "test", model, device, qiskit=True, plot_cm=True, output_dir=SCRIPT_DIR)
 
         except ImportError:
             print("Qiskit not installed or configured correctly.")
